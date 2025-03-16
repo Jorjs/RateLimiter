@@ -20,18 +20,19 @@ namespace RateLimiter
 
         public async Task Perform(TArg arg)
         {
+            await _semaphore.WaitAsync();
+            try { 
             while (true)
             {
                 TimeSpan delay = TimeSpan.Zero;
 
-                await _semaphore.WaitAsync();
-                try
-                {
+                    bool canProceed = true;
                     //cheaks all the limiters
                     foreach (var limit in _rateLimits)
                     {
                         if (limit.Count >= limit.MaxCount)
                         {
+                            canProceed = false;
                             TimeSpan timeUntilExpire = limit.NextExpire;
 
                             if (timeUntilExpire > delay)
@@ -41,24 +42,22 @@ namespace RateLimiter
                         }
                     }
 
-                    if (delay == TimeSpan.Zero)
+                    if (canProceed)
                     {
                         foreach (var limit in _rateLimits)
                         {
                             limit.Add();
                         }
+                        _action(arg);
                         break;
                     }
+                    await Task.Delay(delay);
                 }
-                finally
-                {
-                    _semaphore.Release();
-                }
-
-                await Task.Delay(delay);
             }
-
-            await _action(arg);
+            finally
+            {
+                _semaphore.Release();
+            }
         }
     }
 }

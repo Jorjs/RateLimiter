@@ -12,7 +12,6 @@ namespace RateLimiter
         // Each entry is stored along with its expiration time.
         private readonly Queue<DateTime> _queue = new Queue<DateTime>();
         private Timer? _timer;
-        public DateTime TimerStarted;
         private readonly TimeSpan _lifespan;
         private readonly object _lock = new object();
 
@@ -69,7 +68,6 @@ namespace RateLimiter
             }
             _timer?.Dispose();
             _timer = new Timer(OnTimerElapsed, null, delay, Timeout.InfiniteTimeSpan);
-            TimerStarted = DateTime.UtcNow;
         }
 
         // Provides the total number of non-expired items.
@@ -81,6 +79,22 @@ namespace RateLimiter
                 {
                     return _queue.Count;
                 }
+            }
+        }
+
+        public TimeSpan NextExpiration
+        {
+            get
+            {
+                if (_queue.Count > 0)
+                {
+                    TimeSpan remainingTime = _queue.Peek() - DateTime.UtcNow;
+                    if(remainingTime > TimeSpan.Zero)
+                    {
+                        return remainingTime;
+                    }
+                }
+                return TimeSpan.Zero;
             }
         }
     }
@@ -101,7 +115,7 @@ namespace RateLimiter
         public int Count => _timestamps.Count;
 
         // Calculates the time until the next token expires.
-        public TimeSpan NextExpire => _timestamps.TimerStarted + _lifespan - DateTime.UtcNow;
+        public TimeSpan NextExpire => _timestamps.NextExpiration;
 
         public void Add()
         {
